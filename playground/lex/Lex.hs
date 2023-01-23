@@ -1,3 +1,15 @@
+module Lex
+  ( FA
+  , State
+  , StateName
+  , Transition
+  , TransitionType(..)
+  , findState
+  , exNFA
+  , exNFA2
+  , rmDupl
+  ) where
+
 import           Control.Monad                   (join)
 import qualified Control.Monad.Trans.Writer.Lazy as Wr
 import qualified Data.Set                        as Set
