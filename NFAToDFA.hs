@@ -1,24 +1,12 @@
+module NFAToDFA
+  ( convertNFAToDFA
+  ) where
+
 import           Control.Monad (join)
 import qualified Data.Map      as Map
 import qualified Data.Set      as Set
-
-type NFA = [NFAState]
-
-type DFA = [(StateName, [DFATransition])]
-
-type NFAState = (StateName, [NFATransition])
-
-type DFAState = (StateName, [DFATransition])
-
-type StateName = String
-
-type NFATransition = (TransitionType, StateName)
-
-data TransitionType
-  = Epsilon
-  | Input !Char
-
-type DFATransition = (Char, StateName)
+import           Helper        (addToTuple, rmDupl)
+import           Types
 
 type Done = Set.Set String
 
@@ -27,37 +15,6 @@ type EClosure = [StateName]
 type Move = String
 
 type StartingStates = [StateName]
-
-
--- Examples
-exNFA :: NFA
-exNFA =
-  [ ("n0", [(Input 'a', "n1")])
-  , ("n1", [(Epsilon, "n2")])
-  , ("n2", [(Epsilon, "n3"), (Epsilon, "n9")])
-  , ("n3", [(Epsilon, "n4"), (Epsilon, "n6")])
-  , ("n4", [(Input 'b', "n5")])
-  , ("n5", [(Epsilon, "n8")])
-  , ("n6", [(Input 'c', "n7")])
-  , ("n7", [(Epsilon, "n8")])
-  , ("n8", [(Epsilon, "n3"), (Epsilon, "n9")])
-  , ("n9", [])
-  ]
-
-exNFA2 :: NFA
-exNFA2 =
-  [ ("n0", [(Epsilon, "n1"), (Epsilon, "n7")])
-  , ("n1", [(Epsilon, "n2"), (Epsilon, "n4")])
-  , ("n2", [(Input 'a', "n3")])
-  , ("n3", [(Epsilon, "n6")])
-  , ("n4", [(Input 'b', "n5")])
-  , ("n5", [(Epsilon, "n6")])
-  , ("n6", [(Epsilon, "n1"), (Epsilon, "n7")])
-  , ("n7", [(Input 'a', "n8")])
-  , ("n8", [(Input 'b', "n9")])
-  , ("n9", [(Input 'b', "n10")])
-  , ("n10", [])
-  ]
 
 
 -- Epsilon-closure
@@ -126,8 +83,11 @@ groupNFAStates graph startDone names =
       where
         new = map (groupNFAStates graph done) $ filter (/= names) newStates
 
-assignDFAStates :: [([StateName], [(Char, [StateName])])] -> DFA
-assignDFAStates duplNFA = map assignNames nfa
+assignDFAStates ::
+     AcceptingStates
+  -> [([StateName], [(Char, [StateName])])]
+  -> (DFA, AcceptingStates)
+assignDFAStates ass duplNFA = (map assignNames nfa, newASs)
   where
     nfa                  = rmDupl duplNFA
     assignIndex [] _     = []
@@ -149,10 +109,16 @@ assignDFAStates duplNFA = map assignNames nfa
           error $
           "Target states " ++
           show target ++ " are not in the DFA State Map!\nMap: " ++ show nameMap
+    newASs =
+      Set.fromList . map snd . filter (hasAny ass . fst) $ Map.toList nameMap
+    hasAny set [] = False
+    hasAny set (x:xs)
+      | Set.member x set = True
+      | otherwise        = hasAny set xs
 
-convertNFAToDFA :: NFA -> DFA
-convertNFAToDFA nfa =
-  assignDFAStates . fst $ groupNFAStates nfa done startStates
+convertNFAToDFA :: NFA -> AcceptingStates -> (DFA, AcceptingStates)
+convertNFAToDFA nfa ass =
+  assignDFAStates ass . fst $ groupNFAStates nfa done startStates
   where
     startStates = findStartStates nfa
     done        = Set.fromList startStates
@@ -178,17 +144,3 @@ getChars ((_, t):ss) = rmDupl $ foldr inputs [] t ++ getChars ss
   where
     inputs (Input c, _) acc = c : acc
     inputs (Epsilon, _) acc = acc
-
-
--- Helper (generic)
-rmDupl :: Ord a => [a] -> [a]
-rmDupl = Set.toList . Set.fromList
-
-addToTuple (x, y) z = (x, y, z)
-
-printList [] = return ()
-printList (x:xs) = do
-  print x
-  printList xs
-
--- >>> assignDFAStates $ groupNFAStates exNFA ["n0"]
