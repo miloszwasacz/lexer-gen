@@ -5,7 +5,7 @@ module NFAToDFA
 import           Control.Monad (join)
 import qualified Data.Map      as Map
 import qualified Data.Set      as Set
-import           Helper        (addToTuple, rmDupl)
+import           Helper        (addToTuple, rmDupl, withIndex)
 import           Types
 
 type Done = Set.Set String
@@ -89,12 +89,10 @@ assignDFAStates ::
   -> (DFA, AcceptingStates)
 assignDFAStates ass duplNFA = (map assignNames nfa, newASs)
   where
-    nfa                  = rmDupl duplNFA
-    assignIndex [] _     = []
-    assignIndex (s:ss) i = addToTuple s i : assignIndex ss (i + 1)
-    indexed              = assignIndex nfa 0
+    nfa     = rmDupl duplNFA
+    indexed = withIndex nfa
     nameMap =
-      Map.fromList $ map (\(states, _, i) -> (states, 'd' : show i)) indexed
+      Map.fromList $ map (\((states, _), i) -> (states, 'd' : show i)) indexed
     assignNames (states, edges) =
       case Map.lookup states nameMap of
         Just dfaName -> (dfaName, map assignTarget edges)
@@ -116,15 +114,15 @@ assignDFAStates ass duplNFA = (map assignNames nfa, newASs)
       | Set.member x set = True
       | otherwise        = hasAny set xs
 
-convertNFAToDFA :: NFA -> AcceptingStates -> (DFA, AcceptingStates)
-convertNFAToDFA nfa ass =
+convertNFAToDFA :: (NFA, AcceptingStates) -> (DFA, AcceptingStates)
+convertNFAToDFA (nfa, ass) =
   assignDFAStates ass . fst $ groupNFAStates nfa done startStates
   where
     startStates = findStartStates nfa
     done        = Set.fromList startStates
 
 
--- Helper (FA)
+-- Helper
 findState :: NFA -> StateName -> NFAState
 findState [] query = error $ "State \"" ++ query ++ "\" not found"
 findState ((stateName, transitions):states) query
